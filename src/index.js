@@ -1,23 +1,22 @@
 /* eslint-disable jsx-a11y/anchor-has-content */
-import React, { useContext } from "react";
-import PropTypes from "prop-types";
+import React, { createContext, useContext } from "react";
 import invariant from "invariant";
-import createContext from "create-react-context";
-import { polyfill } from "react-lifecycles-compat";
 import {
-  startsWith,
+  insertParams,
+  match,
+  noop,
   pick,
   resolve,
-  match,
-  insertParams,
+  shallowCompare,
+  startsWith,
+  stripSlashes,
   validateRedirect,
-  shallowCompare
 } from "./lib/utils";
 import {
   globalHistory,
   navigate,
   createHistory,
-  createMemorySource
+  createMemorySource,
 } from "./lib/history";
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -30,13 +29,13 @@ const createNamedContext = (name, defaultValue) => {
 
 ////////////////////////////////////////////////////////////////////////////////
 // Location Context/Provider
-let LocationContext = createNamedContext("Location");
+const LocationContext = createNamedContext("Location");
 
 // sets up a listener if there isn't one already so apps don't need to be
 // wrapped in some top level provider
-let Location = ({ children }) => (
+const Location = ({ children }) => (
   <LocationContext.Consumer>
-    {context =>
+    {(context) =>
       context ? (
         children(context)
       ) : (
@@ -47,35 +46,23 @@ let Location = ({ children }) => (
 );
 
 class LocationProvider extends React.Component {
-  static propTypes = {
-    history: PropTypes.object.isRequired
-  };
-
   static defaultProps = {
-    history: globalHistory
+    history: globalHistory,
   };
 
   state = {
     context: this.getContext(),
-    refs: { unlisten: null }
+    refs: { unlisten: null },
   };
 
   getContext() {
-    let {
-      props: {
-        history: { navigate, location }
-      }
-    } = this;
+    const { navigate, location } = this.props.history;
     return { navigate, location };
   }
 
   componentDidCatch(error, info) {
     if (isRedirect(error)) {
-      let {
-        props: {
-          history: { navigate }
-        }
-      } = this;
+      const { navigate } = this.props.history;
       navigate(error.uri, { replace: true });
     } else {
       throw error;
@@ -89,10 +76,8 @@ class LocationProvider extends React.Component {
   }
 
   componentDidMount() {
-    let {
-      state: { refs },
-      props: { history }
-    } = this;
+    const { refs } = this.state;
+    const { history } = this.props;
     history._onTransitionComplete();
     refs.unlisten = history.listen(() => {
       Promise.resolve().then(() => {
@@ -107,18 +92,14 @@ class LocationProvider extends React.Component {
   }
 
   componentWillUnmount() {
-    let {
-      state: { refs }
-    } = this;
+    const { refs } = this.state;
     this.unmounted = true;
     refs.unlisten();
   }
 
   render() {
-    let {
-      state: { context },
-      props: { children }
-    } = this;
+    const { context } = this.state;
+    const { children } = this.props;
     return (
       <LocationContext.Provider value={context}>
         {typeof children === "function" ? children(context) : children || null}
@@ -128,12 +109,12 @@ class LocationProvider extends React.Component {
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-let ServerLocation = ({ url, children }) => {
-  let searchIndex = url.indexOf("?");
-  let searchExists = searchIndex > -1;
+const ServerLocation = ({ url, children }) => {
+  const searchIndex = url.indexOf("?");
+  const searchExists = searchIndex > -1;
   let pathname;
   let search = "";
-  let hash = "";
+  const hash = "";
 
   if (searchExists) {
     pathname = url.substring(0, searchIndex);
@@ -148,11 +129,11 @@ let ServerLocation = ({ url, children }) => {
         location: {
           pathname,
           search,
-          hash
+          hash,
         },
         navigate: () => {
           throw new Error("You can't call navigate on the server.");
-        }
+        },
       }}
     >
       {children}
@@ -161,19 +142,19 @@ let ServerLocation = ({ url, children }) => {
 };
 ////////////////////////////////////////////////////////////////////////////////
 // Sets baseuri and basepath for nested routers and links
-let BaseContext = createNamedContext("Base", {
+const BaseContext = createNamedContext("Base", {
   baseuri: "/",
   basepath: "/",
-  navigate: globalHistory.navigate
+  navigate: globalHistory.navigate,
 });
 
 ////////////////////////////////////////////////////////////////////////////////
 // The main event, welcome to the show everybody.
-let Router = props => (
+const Router = (props) => (
   <BaseContext.Consumer>
-    {baseContext => (
+    {(baseContext) => (
       <Location>
-        {locationContext => (
+        {(locationContext) => (
           <RouterImpl {...baseContext} {...locationContext} {...props} />
         )}
       </Location>
@@ -183,62 +164,61 @@ let Router = props => (
 
 class RouterImpl extends React.PureComponent {
   static defaultProps = {
-    primary: true
+    primary: true,
   };
 
   render() {
-    let {
+    let { basepath } = this.props;
+    const {
       location,
       navigate,
-      basepath,
+      basepath: _,
       primary,
       children,
       baseuri,
       component = "div",
       ...domProps
     } = this.props;
-    let routes = React.Children.toArray(children).reduce((array, child) => {
+    const routes = React.Children.toArray(children).reduce((array, child) => {
       const routes = createRoute(basepath)(child);
       return array.concat(routes);
     }, []);
-    let { pathname } = location;
+    const { pathname } = location;
 
-    let match = pick(routes, pathname);
+    const match = pick(routes, pathname);
 
     if (match) {
-      let {
+      const {
         params,
         uri,
         route,
-        route: { value: element }
+        route: { value: element },
       } = match;
 
       // remove the /* from the end for child routes relative paths
       basepath = route.default ? basepath : route.path.replace(/\*$/, "");
 
-      let props = {
+      const props = {
         ...params,
         uri,
         location,
-        navigate: (to, options) => navigate(resolve(to, uri), options)
+        navigate: (to, options) => navigate(resolve(to, uri), options),
       };
 
-      let clone = React.cloneElement(
+      const clone = React.cloneElement(
         element,
         props,
         element.props.children ? (
           <Router location={location} primary={primary}>
             {element.props.children}
           </Router>
-        ) : (
-          undefined
-        )
+        ) : undefined
       );
 
       // using 'div' for < 16.3 support
-      let FocusWrapper = primary ? FocusHandler : component;
+      const FocusWrapper = primary ? FocusHandler : component;
       // don't pass any props to 'div'
-      let wrapperProps = primary
+      const wrapperProps = primary
         ? { uri, location, component, ...domProps }
         : domProps;
 
@@ -268,11 +248,11 @@ class RouterImpl extends React.PureComponent {
   }
 }
 
-let FocusContext = createNamedContext("Focus");
+const FocusContext = createNamedContext("Focus");
 
-let FocusHandler = ({ uri, location, component, ...domProps }) => (
+const FocusHandler = ({ uri, location, component, ...domProps }) => (
   <FocusContext.Consumer>
-    {requestFocus => (
+    {(requestFocus) => (
       <FocusHandlerImpl
         {...domProps}
         component={component}
@@ -292,20 +272,20 @@ class FocusHandlerImpl extends React.Component {
   state = {};
 
   static getDerivedStateFromProps(nextProps, prevState) {
-    let initial = prevState.uri == null;
+    const initial = prevState.uri == null;
     if (initial) {
       return {
         shouldFocus: true,
-        ...nextProps
+        ...nextProps,
       };
     } else {
-      let myURIChanged = nextProps.uri !== prevState.uri;
-      let navigatedUpToMe =
+      const myURIChanged = nextProps.uri !== prevState.uri;
+      const navigatedUpToMe =
         prevState.location.pathname !== nextProps.location.pathname &&
         nextProps.location.pathname === nextProps.uri;
       return {
         shouldFocus: myURIChanged || navigatedUpToMe,
-        ...nextProps
+        ...nextProps,
       };
     }
   }
@@ -336,7 +316,7 @@ class FocusHandlerImpl extends React.Component {
       return;
     }
 
-    let { requestFocus } = this.props;
+    const { requestFocus } = this.props;
 
     if (requestFocus) {
       requestFocus(this.node);
@@ -353,14 +333,14 @@ class FocusHandlerImpl extends React.Component {
     }
   }
 
-  requestFocus = node => {
+  requestFocus = (node) => {
     if (!this.state.shouldFocus && node) {
       node.focus();
     }
   };
 
   render() {
-    let {
+    const {
       children,
       style,
       requestFocus,
@@ -374,7 +354,7 @@ class FocusHandlerImpl extends React.Component {
       <Comp
         style={{ outline: "none", ...style }}
         tabIndex="-1"
-        ref={n => (this.node = n)}
+        ref={(n) => (this.node = n)}
         {...domProps}
       >
         <FocusContext.Provider value={this.requestFocus}>
@@ -385,26 +365,22 @@ class FocusHandlerImpl extends React.Component {
   }
 }
 
-polyfill(FocusHandlerImpl);
-
-let k = () => {};
-
 ////////////////////////////////////////////////////////////////////////////////
 let { forwardRef } = React;
 if (typeof forwardRef === "undefined") {
-  forwardRef = C => C;
+  forwardRef = (C) => C;
 }
 
-let Link = forwardRef(({ innerRef, ...props }, ref) => (
+const Link = forwardRef(({ innerRef, ...props }, ref) => (
   <BaseContext.Consumer>
     {({ basepath, baseuri }) => (
       <Location>
         {({ location, navigate }) => {
-          let { to, state, replace, getProps = k, ...anchorProps } = props;
-          let href = resolve(to, baseuri);
-          let encodedHref = encodeURI(href);
-          let isCurrent = location.pathname === encodedHref;
-          let isPartiallyCurrent = startsWith(location.pathname, encodedHref);
+          const { to, state, replace, getProps = noop, ...anchorProps } = props;
+          const href = resolve(to, baseuri);
+          const encodedHref = encodeURI(href);
+          const isCurrent = location.pathname === encodedHref;
+          const isPartiallyCurrent = startsWith(location.pathname, encodedHref);
 
           return (
             <a
@@ -413,7 +389,7 @@ let Link = forwardRef(({ innerRef, ...props }, ref) => (
               {...anchorProps}
               {...getProps({ isCurrent, isPartiallyCurrent, href, location })}
               href={href}
-              onClick={event => {
+              onClick={(event) => {
                 if (anchorProps.onClick) anchorProps.onClick(event);
                 if (shouldNavigate(event)) {
                   event.preventDefault();
@@ -424,7 +400,7 @@ let Link = forwardRef(({ innerRef, ...props }, ref) => (
                   }
                   navigate(href, {
                     state,
-                    replace: shouldReplace
+                    replace: shouldReplace,
                   });
                 }
               }}
@@ -438,25 +414,21 @@ let Link = forwardRef(({ innerRef, ...props }, ref) => (
 
 Link.displayName = "Link";
 
-Link.propTypes = {
-  to: PropTypes.string.isRequired
-};
-
 ////////////////////////////////////////////////////////////////////////////////
 function RedirectRequest(uri) {
   this.uri = uri;
 }
 
-let isRedirect = o => o instanceof RedirectRequest;
+const isRedirect = (o) => o instanceof RedirectRequest;
 
-let redirectTo = to => {
+const redirectTo = (to) => {
   throw new RedirectRequest(to);
 };
 
 class RedirectImpl extends React.Component {
   // Support React < 16 with this hook
   componentDidMount() {
-    let {
+    const {
       props: {
         navigate,
         to,
@@ -466,29 +438,28 @@ class RedirectImpl extends React.Component {
         noThrow,
         baseuri,
         ...props
-      }
+      },
     } = this;
     Promise.resolve().then(() => {
-      let resolvedTo = resolve(to, baseuri);
+      const resolvedTo = resolve(to, baseuri);
       navigate(insertParams(resolvedTo, props), { replace, state });
     });
   }
 
   render() {
-    let {
-      props: { navigate, to, from, replace, state, noThrow, baseuri, ...props }
-    } = this;
-    let resolvedTo = resolve(to, baseuri);
+    const { navigate, to, from, replace, state, noThrow, baseuri, ...props } =
+      this.props;
+    const resolvedTo = resolve(to, baseuri);
     if (!noThrow) redirectTo(insertParams(resolvedTo, props));
     return null;
   }
 }
 
-let Redirect = props => (
+const Redirect = (props) => (
   <BaseContext.Consumer>
     {({ baseuri }) => (
       <Location>
-        {locationContext => (
+        {(locationContext) => (
           <RedirectImpl {...locationContext} baseuri={baseuri} {...props} />
         )}
       </Location>
@@ -496,19 +467,14 @@ let Redirect = props => (
   </BaseContext.Consumer>
 );
 
-Redirect.propTypes = {
-  from: PropTypes.string,
-  to: PropTypes.string.isRequired
-};
-
 ////////////////////////////////////////////////////////////////////////////////
-let Match = ({ path, children }) => (
+const Match = ({ path, children }) => (
   <BaseContext.Consumer>
     {({ baseuri }) => (
       <Location>
         {({ navigate, location }) => {
-          let resolvedPath = resolve(path, baseuri);
-          let result = match(resolvedPath, location.pathname);
+          const resolvedPath = resolve(path, baseuri);
+          const result = match(resolvedPath, location.pathname);
           return children({
             navigate,
             location,
@@ -516,9 +482,9 @@ let Match = ({ path, children }) => (
               ? {
                   ...result.params,
                   uri: result.uri,
-                  path
+                  path,
                 }
-              : null
+              : null,
           });
         }}
       </Location>
@@ -569,7 +535,7 @@ const useParams = () => {
   return results ? results.params : null;
 };
 
-const useMatch = path => {
+const useMatch = (path) => {
   if (!path) {
     throw new Error(
       "useMatch(path: string) requires an argument of a string to match against"
@@ -591,16 +557,14 @@ const useMatch = path => {
     ? {
         ...result.params,
         uri: result.uri,
-        path
+        path,
       }
     : null;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 // Junk
-let stripSlashes = str => str.replace(/(^\/+|\/+$)/g, "");
-
-let createRoute = basepath => element => {
+const createRoute = (basepath) => (element) => {
   if (!element) {
     return null;
   }
@@ -630,10 +594,10 @@ let createRoute = basepath => element => {
     return { value: element, default: true };
   }
 
-  let elementPath =
+  const elementPath =
     element.type === Redirect ? element.props.from : element.props.path;
 
-  let path =
+  const path =
     elementPath === "/"
       ? basepath
       : `${stripSlashes(basepath)}/${stripSlashes(elementPath)}`;
@@ -641,11 +605,11 @@ let createRoute = basepath => element => {
   return {
     value: element,
     default: element.props.default,
-    path: element.props.children ? `${stripSlashes(path)}/*` : path
+    path: element.props.children ? `${stripSlashes(path)}/*` : path,
   };
 };
 
-let shouldNavigate = event =>
+const shouldNavigate = (event) =>
   !event.defaultPrevented &&
   event.button === 0 &&
   !(event.metaKey || event.altKey || event.ctrlKey || event.shiftKey);
@@ -669,5 +633,5 @@ export {
   useLocation,
   useNavigate,
   useParams,
-  useMatch
+  useMatch,
 };

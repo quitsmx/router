@@ -6,29 +6,29 @@ const gzipSize = require("gzip-size");
 const exec = (command, extraEnv) =>
   execSync(command, {
     stdio: "inherit",
-    env: Object.assign({}, process.env, extraEnv)
+    env: Object.assign({}, process.env, extraEnv),
   });
 
 console.log("\nBuilding ES modules ...");
-exec("babel src -d es --ignore *.test.js", {
-  BABEL_ENV: "es"
+exec('babel src -d es --ignore "src/**/*.test.js"', {
+  BABEL_ENV: "es",
 });
 
 console.log("Building CommonJS modules ...");
-exec("babel src -d . --ignore *.test.js", {
-  BABEL_ENV: "cjs"
+exec('babel src -d . --ignore "src/**/*.test.js"', {
+  BABEL_ENV: "cjs",
 });
 
 console.log("\nBuilding UMD ...");
 exec("rollup -c -f umd -o umd/reach-router.js", {
   BABEL_ENV: "umd",
-  NODE_ENV: "development"
+  NODE_ENV: "development",
 });
 
 console.log("\nBuilding UMD min.js ...");
 exec("rollup -c -f umd -o umd/reach-router.min.js", {
   BABEL_ENV: "umd",
-  NODE_ENV: "production"
+  NODE_ENV: "production",
 });
 
 const size = gzipSize.sync(fs.readFileSync("umd/reach-router.min.js"));
