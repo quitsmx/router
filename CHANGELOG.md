@@ -1,3 +1,12 @@
+## v1.3.5
+
+### Changed
+
+- Minor fixes to typings
+- Fix browserslist to use ES2018
+- Fix babel config
+- Update dependencies
+
 ## v1.3.4
 
 - d7e4cfc Support forwarding url params with wildcard paths
