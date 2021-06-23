@@ -19,13 +19,14 @@ const config = {
   },
   external: ["react", "react-dom"],
   plugins: [
-    babel({
-      babelHelpers: "external",
-      exclude: "node_modules/**",
-    }),
     resolve(),
     commonjs({
       include: /node_modules/,
+    }),
+    babel({
+      // ver project://src/.babelrc.js
+      babelHelpers: "external",
+      exclude: "node_modules/**",
     }),
     replace({
       "process.env.NODE_ENV": JSON.stringify(NODE_ENV),
