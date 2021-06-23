@@ -1,5 +1,5 @@
 const BABEL_ENV = process.env.BABEL_ENV;
-const building = BABEL_ENV !== undefined && BABEL_ENV !== "cjs";
+const notCJS = BABEL_ENV !== undefined && BABEL_ENV !== "cjs";
 
 const plugins = [
   "dev-expression",
@@ -20,13 +20,21 @@ module.exports = {
     [
       "@babel/preset-env",
       {
+        bugfixes: true,
         corejs: 3,
-        loose: true,
-        modules: building ? false : "commonjs",
+        modules: notCJS ? false : "commonjs",
         useBuiltIns: "entry",
       },
     ],
-    "@babel/preset-react",
+    [
+      "@babel/preset-react",
+      {
+        development: false,
+        runtime: "automatic",
+        useBuiltIns: true,
+        useSpread: true,
+      },
+    ],
   ],
   plugins: plugins,
 };
