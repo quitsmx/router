@@ -24,8 +24,8 @@ export interface HLocation<S = unknown> {
 export type WindowLocation<S = unknown> = Window["location"] & HLocation<S>;
 
 export type HistoryActionType = "PUSH" | "POP";
-export type HistoryLocation = Omit<
-  WindowLocation & { state?: any },
+export type HistoryLocation<S = any> = Omit<
+  WindowLocation & { state?: S },
   "ancestorOrigins"
 >;
 export interface HistoryListenerParameter {
@@ -53,10 +53,10 @@ export interface RouterProps {
   component?: React.ComponentType | string;
 }
 
-export type RouteComponentProps<TParams = Dict> = Partial<TParams> & {
+export type RouteComponentProps<TParams = Dict, S = any> = TParams & {
   path?: string;
   default?: boolean;
-  location?: WindowLocation;
+  location?: WindowLocation<S>;
   navigate?: NavigateFn;
   uri?: string;
 };
